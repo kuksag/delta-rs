@@ -31,6 +31,7 @@ pub use object_store::{
     DynObjectStore, Error as ObjectStoreError, GetResult, ListResult, MultipartId, ObjectMeta,
     ObjectStore, Result as ObjectStoreResult,
 };
+use percent_encoding::percent_decode_str;
 pub use utils::*;
 
 lazy_static! {
@@ -86,7 +87,8 @@ impl DeltaObjectStore {
     /// * `location` - A url pointing to the root of the delta table.
     /// * `options` - Options passed to underlying builders. See [`with_storage_options`](crate::builder::DeltaTableBuilder::with_storage_options)
     pub fn try_new(location: Url, options: impl Into<StorageOptions> + Clone) -> DeltaResult<Self> {
-        let prefix = Path::from(location.path());
+        let path_utf8 = percent_decode_str(location.path()).decode_utf8_lossy().to_string();
+        let prefix = Path::from(path_utf8);
         let root_store =
             ObjectStoreKind::parse_url(&location)?.into_impl(location.as_ref(), options.clone())?;
         let storage = if prefix != Path::from("/") {
