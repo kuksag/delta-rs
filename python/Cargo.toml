@@ -27,6 +27,8 @@ regex = "1"
 serde = "1"
 serde_json = "1"
 tokio = { version = "1", features = ["rt-multi-thread"] }
+percent-encoding = "2"
+url = "2"
 
 # reqwest is pulled in by azure sdk, but not used by python binding itself
 # for binary wheel best practice, statically link openssl

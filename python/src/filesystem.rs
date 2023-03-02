@@ -6,12 +6,14 @@ use crate::PyDeltaTableError;
 
 use deltalake::storage::{DynObjectStore, ListResult, MultipartId, ObjectStoreError, Path};
 use deltalake::DeltaTableBuilder;
+use percent_encoding::percent_decode_str;
 use pyo3::exceptions::{PyIOError, PyNotImplementedError, PyValueError};
 use pyo3::prelude::*;
 use pyo3::types::{IntoPyDict, PyBytes};
 use serde::{Deserialize, Serialize};
 use tokio::io::{AsyncWrite, AsyncWriteExt};
 use tokio::runtime::Runtime;
+use url::Url;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FsConfig {
@@ -32,7 +34,14 @@ impl DeltaFileSystemHandler {
     #[new]
     #[pyo3(signature = (table_uri, options = None))]
     fn new(table_uri: &str, options: Option<HashMap<String, String>>) -> PyResult<Self> {
-        let storage = DeltaTableBuilder::from_uri(table_uri)
+        let decoded_uri = percent_decode_str(table_uri)
+            .decode_utf8_lossy()
+            .to_string();
+        // If path contains symbols that will be url-encoded and we access table over a network, then we have to specify a schema.
+        // "file://" is dropped at creation of DeltaTable, so we bringing it back
+        let table_uri = Url::from_file_path(&decoded_uri).map_or(decoded_uri, |x| x.to_string());
+
+        let storage = DeltaTableBuilder::from_uri(table_uri.clone())
             .with_storage_options(options.clone().unwrap_or_default())
             .build_storage()
             .map_err(PyDeltaTableError::from_raw)?;
@@ -40,7 +49,7 @@ impl DeltaFileSystemHandler {
             inner: storage,
             rt: Arc::new(rt()?),
             config: FsConfig {
-                root_url: table_uri.into(),
+                root_url: table_uri,
                 options: options.unwrap_or_default(),
             },
         })
